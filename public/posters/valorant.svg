@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" fill="none">
+  <rect width="600" height="800" fill="#121215"/>
+  <rect x="20" y="20" width="560" height="760" rx="16" stroke="#27272A" stroke-width="2"/>
+  <path d="M0 490L600 290V800H0V490Z" fill="#18181B"/>
+  <path d="M175 180L300 390L245 390L175 270V180Z" fill="#EF4444"/>
+  <path d="M425 180L335 335H280L425 180Z" fill="#FAFAFA"/>
+  <rect x="44" y="48" width="144" height="28" rx="4" fill="#18181B" stroke="#3F3F46"/>
+  <text x="60" y="67" fill="#EF4444" font-family="monospace" font-size="13" font-weight="700" letter-spacing="2">TACTICAL FPS</text>
+  <text x="48" y="545" fill="#A1A1AA" font-family="monospace" font-size="14" letter-spacing="3">RIOT GAMES // AP</text>
+  <text x="48" y="600" fill="#FAFAFA" font-family="sans-serif" font-size="44" font-weight="800" letter-spacing="1">VALORANT</text>
+  <text x="48" y="638" fill="#EF4444" font-family="monospace" font-size="16" font-weight="700" letter-spacing="3">PROTOCOL // VP DIRECT</text>
+</svg>
