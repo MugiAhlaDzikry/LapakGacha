@@ -295,29 +295,31 @@ export async function sendDirectWhatsAppNotification({
   if (fonnteToken) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6000);
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
+      const params = new URLSearchParams();
+      params.append("target", adminNumber);
+      params.append("message", formattedMessage);
+      params.append("countryCode", "62");
 
       const res = await fetch("https://api.fonnte.com/send", {
         method: "POST",
         headers: {
           Authorization: fonnteToken,
-          "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          target: adminNumber,
-          message: formattedMessage,
-        }),
+        body: params,
         signal: controller.signal,
       });
       clearTimeout(timeout);
       const data = await res.json().catch(() => ({}));
+      console.log("Fonnte WA Gateway response:", data);
       return { ok: true, provider: "fonnte", result: data };
     } catch (err) {
       console.warn("Fonnte WA Gateway failed:", err?.message);
     }
   }
 
-  // Jika tidak ada Fonnte token, pesan tetap berhasil dicatat di server dan siap diteruskan
+  // Jika belum ada FONNTE_TOKEN, catat pesan di server
   return {
     ok: true,
     provider: "internal",
