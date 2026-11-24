@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
         topicLabel || activeTopic?.label || "Pesan Bantuan / Konfirmasi";
 
       if (channel === "whatsapp") {
+        // 1. Coba kirim via WhatsApp Gateway (Fonnte jika ada token)
         const waResult = await sendDirectWhatsAppNotification({
           formattedMessage,
           topicLabel: resolvedTopicLabel,
@@ -110,13 +111,24 @@ export async function POST(request: NextRequest) {
           targetUserId,
         });
 
+        // 2. Selalu teruskan salinan pesan ke Telegram Bot Admin agar Admin pasti menerima notifikasi instan di HP
+        const tgForwardResult = await sendDirectTelegramNotification({
+          formattedMessage,
+          topicLabel: `[WhatsApp Admin] ${resolvedTopicLabel}`,
+          invoiceNumber,
+          senderPhone,
+          gameName,
+          targetUserId,
+        });
+
         return NextResponse.json({
           success: true,
           channel: "whatsapp",
-          message: `Pesan berhasil dikirim otomatis ke WhatsApp Admin (${ADMIN_WHATSAPP_RAW})!`,
+          message: `Pesan berhasil dikirim otomatis ke sistem Admin (${ADMIN_WHATSAPP_RAW})! Notifikasi instan diteruskan ke bot Admin.`,
           destination: ADMIN_WHATSAPP_RAW,
           formatted_message: formattedMessage,
           result: waResult,
+          telegram_forward: tgForwardResult,
         });
       }
 

@@ -226,15 +226,15 @@ export async function sendDirectTelegramNotification({
     timeZone: "Asia/Jakarta",
   });
 
-  let html = `🔔 <b>PESAN BARU DARI WEBSITE KRONOS.GG</b>\n`;
-  html += `⏱ <i>Waktu: ${timestamp} WIB</i>\n\n`;
-  if (topicLabel) html += `📋 <b>Topik:</b> ${escapeTelegramHtml(topicLabel)}\n`;
-  if (invoiceNumber) html += `🧾 <b>No. Invoice:</b> <code>${escapeTelegramHtml(invoiceNumber)}</code>\n`;
-  if (gameName) html += `🎮 <b>Game:</b> ${escapeTelegramHtml(gameName)}\n`;
-  if (targetUserId) html += `🆔 <b>ID Tujuan:</b> <code>${escapeTelegramHtml(targetUserId)}</code>\n`;
-  if (senderPhone) html += `📱 <b>Kontak Pembeli:</b> <code>${escapeTelegramHtml(senderPhone)}</code>\n`;
-  html += `\n💬 <b>Isi Pesan Pembeli:</b>\n<blockquote>${escapeTelegramHtml(formattedMessage)}</blockquote>\n`;
-  html += `\n<i>Notifikasi dikirim otomatis dari website LapakGacha langsung ke Admin.</i>`;
+  let textContent = `🔔 PESAN BARU DARI WEBSITE KRONOS.GG\n`;
+  textContent += `⏱ Waktu: ${timestamp} WIB\n\n`;
+  if (topicLabel) textContent += `📋 Topik: ${topicLabel}\n`;
+  if (invoiceNumber) textContent += `🧾 No. Invoice: ${invoiceNumber}\n`;
+  if (gameName) textContent += `🎮 Game: ${gameName}\n`;
+  if (targetUserId) textContent += `🆔 ID Tujuan: ${targetUserId}\n`;
+  if (senderPhone) textContent += `📱 Kontak Pembeli: ${senderPhone}\n`;
+  textContent += `\n💬 Isi Pesan Pembeli:\n${formattedMessage}\n`;
+  textContent += `\n(Notifikasi dikirim otomatis dari website LapakGacha langsung ke Admin)`;
 
   if (!token || !chatId) {
     return { ok: true, queued: true, note: "Kredensial Telegram belum diset, pesan dicatat di antrean sistem." };
@@ -249,8 +249,7 @@ export async function sendDirectTelegramNotification({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: chatId,
-        text: html,
-        parse_mode: "HTML",
+        text: textContent,
       }),
       signal: controller.signal,
     });

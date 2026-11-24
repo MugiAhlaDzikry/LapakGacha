@@ -156,11 +156,11 @@ export function FloatingWhatsAppButton() {
       // Pesan selalu berhasil dicatat di server dan diteruskan ke admin
       if (channelToUse === "whatsapp") {
         setSendSuccess(
-          `Pesan berhasil terkirim otomatis ke WhatsApp Admin (${ADMIN_WHATSAPP_RAW})! Anda tidak perlu membuka WhatsApp Web.`
+          `Pesan berhasil dikirim dan diteruskan langsung ke sistem Admin (${ADMIN_WHATSAPP_RAW})!`
         );
       } else {
         setSendSuccess(
-          `Pesan berhasil terkirim otomatis ke Telegram Admin (@${DEFAULT_TELEGRAM_BOT_USERNAME})! Anda tidak perlu membuka Telegram Web.`
+          `Pesan berhasil terkirim otomatis ke Telegram Admin (@${DEFAULT_TELEGRAM_BOT_USERNAME})!`
         );
       }
     } catch {
