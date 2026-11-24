@@ -256,10 +256,37 @@ export async function sendDirectTelegramNotification({
     });
     clearTimeout(timeout);
     const data = await res.json();
+
+    if (!res.ok || data?.ok === false) {
+      if (data?.error_code === 429) {
+        const retrySec = data?.parameters?.retry_after || 30;
+        return {
+          ok: false,
+          error: `Bot Telegram sedang cooldown rate limit (${retrySec} detik). Silakan coba lagi sebentar atau gunakan WhatsApp Admin (${ADMIN_WHATSAPP_RAW}).`,
+          description: data?.description,
+        };
+      }
+      return {
+        ok: false,
+        error:
+          data?.description ||
+          "Gagal mengirim ke Telegram API. Pastikan admin sudah klik START di @Sukijem_bot.",
+        description: data?.description,
+      };
+    }
+
     return data;
   } catch (err) {
     console.error("Direct Telegram send error:", err);
-    return { ok: false, error: err?.message || "Gagal menghubungi Telegram API" };
+    const isAbort =
+      err?.name === "AbortError" ||
+      String(err?.message || "").toLowerCase().includes("abort");
+    return {
+      ok: false,
+      error: isAbort
+        ? `Koneksi ke bot Telegram timeout. Silakan gunakan tombol WhatsApp Admin (${ADMIN_WHATSAPP_RAW}) di bawah.`
+        : (err?.message || "Gagal menghubungi Telegram API"),
+    };
   }
 }
 

@@ -20,9 +20,11 @@ import {
   ADMIN_TELEGRAM_PHONE,
   ADMIN_WHATSAPP_PLUS,
   ADMIN_WHATSAPP_RAW,
+  DEFAULT_TELEGRAM_BOT_USERNAME,
   WHATSAPP_QUICK_TEMPLATES,
   buildAdminTelegramUrl,
   buildAdminWhatsAppUrl,
+  buildFormattedSupportMessage,
   generateWhatsAppQrMatrix,
 } from "@/lib/whatsapp";
 import {
@@ -42,8 +44,9 @@ export function FloatingWhatsAppButton() {
   const [buyerPhone, setBuyerPhone] = useState<string>("");
   const [buyerInvoice, setBuyerInvoice] = useState<string>("");
   const [copiedNumber, setCopiedNumber] = useState(false);
+  const [copiedMessage, setCopiedMessage] = useState(false);
 
-  // Direct sending state (tanpa redirect/tanpa buka web)
+  // Direct sending state for Telegram Bot
   const [isDirectSending, setIsDirectSending] = useState(false);
   const [directSendSuccess, setDirectSendSuccess] = useState<string | null>(
     null
@@ -60,14 +63,25 @@ export function FloatingWhatsAppButton() {
     [selectedTemplateId]
   );
 
+  const formattedMessage = useMemo(
+    () =>
+      buildFormattedSupportMessage({
+        topicId: selectedTemplateId,
+        invoiceNumber: buyerInvoice.trim(),
+        senderPhone: buyerPhone.trim(),
+        customMessage: activeTemplate.defaultMessage,
+      }),
+    [selectedTemplateId, buyerInvoice, buyerPhone, activeTemplate]
+  );
+
   const whatsappUrl = useMemo(
-    () => buildAdminWhatsAppUrl(activeTemplate.defaultMessage),
-    [activeTemplate]
+    () => buildAdminWhatsAppUrl(formattedMessage),
+    [formattedMessage]
   );
 
   const telegramUrl = useMemo(
-    () => buildAdminTelegramUrl(activeTemplate.defaultMessage),
-    [activeTemplate]
+    () => buildAdminTelegramUrl(formattedMessage),
+    [formattedMessage]
   );
 
   const activeQrUrl = activeChannel === "whatsapp" ? whatsappUrl : telegramUrl;
@@ -115,8 +129,14 @@ export function FloatingWhatsAppButton() {
     setTimeout(() => setCopiedNumber(false), 2000);
   }
 
-  // Kirim pesan otomatis langsung tanpa buka WhatsApp Web / Telegram Web
-  async function handleDirectSend(e: React.FormEvent) {
+  function handleCopyMessage() {
+    navigator.clipboard?.writeText(formattedMessage);
+    setCopiedMessage(true);
+    setTimeout(() => setCopiedMessage(false), 2000);
+  }
+
+  // Kirim otomatis ke Telegram Bot Admin via Server API
+  async function handleTelegramDirectSend(e: React.FormEvent) {
     e.preventDefault();
     setIsDirectSending(true);
     setDirectSendError(null);
@@ -132,7 +152,7 @@ export function FloatingWhatsAppButton() {
           topic_label: activeTemplate.label,
           sender_phone: buyerPhone.trim(),
           invoice_number: buyerInvoice.trim(),
-          custom_message: activeTemplate.defaultMessage,
+          formatted_message: formattedMessage,
         }),
       });
 
@@ -140,18 +160,18 @@ export function FloatingWhatsAppButton() {
 
       if (res.ok && data?.success) {
         setDirectSendSuccess(
-          "Pesan otomatis berhasil terkirim langsung ke Admin! Admin akan segera memproses bantuan Anda."
+          "Pesan berhasil terkirim langsung ke bot Telegram Admin! Admin akan segera mengecek kendala Anda."
         );
       } else {
         setDirectSendError(
           data?.error ||
-            "Gagal mengirim pesan langsung. Pastikan Admin sudah klik START di bot Telegram."
+            "Gagal mengirim pesan langsung ke Telegram. Silakan gunakan opsi WhatsApp Admin di sebelah."
         );
       }
     } catch (err: unknown) {
-      const message =
-        err instanceof Error ? err.message : "Terjadi kesalahan jaringan.";
-      setDirectSendError(`Gagal mengirim: ${message}`);
+      const msg =
+        err instanceof Error ? err.message : "Terjadi kendala jaringan.";
+      setDirectSendError(`Koneksi terganggu: ${msg}`);
     } finally {
       setIsDirectSending(false);
     }
@@ -159,20 +179,20 @@ export function FloatingWhatsAppButton() {
 
   return (
     <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
-      {/* Quick Barcode & Direct Message Popover / Modal */}
+      {/* Quick Popover Modal */}
       {isOpen && (
         <div
           ref={panelRef}
           role="dialog"
           aria-modal="false"
           aria-labelledby="floating-wa-dialog-title"
-          className="max-h-[calc(100vh-5rem)] w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-xl border border-white/[0.12] bg-[#121215] p-4 text-left shadow-2xl"
+          className="max-h-[calc(100vh-4rem)] w-[calc(100vw-2rem)] max-w-md overflow-y-auto rounded-xl border border-white/[0.12] bg-[#121215] p-4 text-left shadow-2xl"
         >
           {/* Header */}
           <div className="flex items-start justify-between gap-3 border-b border-white/[0.08] pb-3">
             <div>
               <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-amber-400">
-                LAYANAN PESAN LANGSUNG &amp; BARCODE
+                PUSAT BANTUAN &amp; KONTAK ADMIN
               </span>
               <h2
                 id="floating-wa-dialog-title"
@@ -185,31 +205,79 @@ export function FloatingWhatsAppButton() {
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              aria-label="Tutup panel Barcode Admin"
+              aria-label="Tutup panel kontak Admin"
               className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-white/[0.1] bg-zinc-950 text-zinc-300 transition-colors hover:border-white/25 hover:text-zinc-50"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          {/* Form Kirim Pesan Langsung Otomatis (Tanpa Redirect Web) */}
-          <form
-            onSubmit={handleDirectSend}
-            className="mt-3.5 space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-3"
-          >
-            <div className="flex items-center gap-2">
-              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-400">
-                <Sparkles className="h-3 w-3" />
-              </span>
-              <h3 className="font-mono text-[11px] font-bold uppercase tracking-wider text-amber-400">
-                Kirim Pesan Otomatis (Tanpa Buka Web)
-              </h3>
-            </div>
-            <p className="font-mono text-[11px] text-zinc-400 leading-relaxed">
-              Pesan langsung sampai ke Admin saat ini juga tanpa perlu beralih ke
-              WhatsApp Web atau Telegram Web.
-            </p>
+          {/* TAB PILIHAN CHANNEL: WHATSAPP VS TELEGRAM */}
+          <div className="mt-3.5 space-y-1.5">
+            <span className="block font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-300">
+              PILIH JALUR ADMIN (OPSI PENGIRIMAN):
+            </span>
+            <div
+              role="tablist"
+              aria-label="Pilih Jalur Pengiriman WhatsApp atau Telegram"
+              className="grid grid-cols-2 gap-2"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeChannel === "whatsapp"}
+                onClick={() => {
+                  setActiveChannel("whatsapp");
+                  setDirectSendError(null);
+                  setDirectSendSuccess(null);
+                }}
+                className={`flex min-h-[46px] items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-all ${
+                  activeChannel === "whatsapp"
+                    ? "border-emerald-500 bg-emerald-500/20 text-emerald-300 ring-2 ring-emerald-500"
+                    : "border-white/[0.08] bg-zinc-950 text-zinc-400 hover:border-white/20 hover:text-zinc-200"
+                }`}
+              >
+                <WhatsAppGlyph className="h-4 w-4 shrink-0 text-emerald-400" />
+                <div className="text-left">
+                  <span className="block font-heading text-xs font-bold leading-tight">
+                    WhatsApp Admin
+                  </span>
+                  <span className="block font-mono text-[10px] text-zinc-400">
+                    {ADMIN_WHATSAPP_RAW}
+                  </span>
+                </div>
+              </button>
 
+              <button
+                type="button"
+                role="tab"
+                aria-selected={activeChannel === "telegram"}
+                onClick={() => {
+                  setActiveChannel("telegram");
+                  setDirectSendError(null);
+                  setDirectSendSuccess(null);
+                }}
+                className={`flex min-h-[46px] items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition-all ${
+                  activeChannel === "telegram"
+                    ? "border-amber-500 bg-amber-500/20 text-amber-300 ring-2 ring-amber-500"
+                    : "border-white/[0.08] bg-zinc-950 text-zinc-400 hover:border-white/20 hover:text-zinc-200"
+                }`}
+              >
+                <TelegramGlyph className="h-4 w-4 shrink-0 text-amber-400" />
+                <div className="text-left">
+                  <span className="block font-heading text-xs font-bold leading-tight">
+                    Telegram Bot
+                  </span>
+                  <span className="block font-mono text-[10px] text-zinc-400">
+                    @{DEFAULT_TELEGRAM_BOT_USERNAME}
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          {/* Form Detail Kendala & Template */}
+          <div className="mt-3.5 space-y-3 rounded-xl border border-white/[0.08] bg-zinc-950/70 p-3">
             {/* Template Selector */}
             <div>
               <label
@@ -232,14 +300,14 @@ export function FloatingWhatsAppButton() {
               </select>
             </div>
 
-            {/* Input Kontak Pembeli & Invoice (Opsional) */}
+            {/* Input Kontak Pembeli & Invoice */}
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <div>
                 <label
                   htmlFor="floating-buyer-phone"
                   className="block font-mono text-[10px] uppercase text-zinc-300"
                 >
-                  No. WA / Kontak (Opsional):
+                  No. WA Anda (Opsional):
                 </label>
                 <input
                   id="floating-buyer-phone"
@@ -261,7 +329,7 @@ export function FloatingWhatsAppButton() {
                 <input
                   id="floating-buyer-invoice"
                   type="text"
-                  placeholder="KRN..."
+                  placeholder="Contoh: KRN..."
                   value={buyerInvoice}
                   onChange={(e) => setBuyerInvoice(e.target.value)}
                   className="mt-1 min-h-[38px] w-full rounded-lg border border-white/[0.12] bg-zinc-950 px-2.5 py-1 text-xs text-zinc-100 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none font-mono uppercase"
@@ -269,192 +337,195 @@ export function FloatingWhatsAppButton() {
               </div>
             </div>
 
-            {/* Pratinjau Pesan yang Dikirim */}
+            {/* Pratinjau Pesan Terstruktur */}
             <div className="rounded-lg border border-white/[0.06] bg-zinc-950/90 p-2.5">
-              <span className="block font-mono text-[10px] uppercase text-zinc-400">
-                Pesan yang Dikirimkan:
-              </span>
-              <p className="mt-1 line-clamp-3 font-mono text-[11px] leading-relaxed text-zinc-300 whitespace-pre-wrap">
-                {activeTemplate.defaultMessage}
-              </p>
-            </div>
-
-            {/* Status Notifikasi Terkirim / Error */}
-            {directSendSuccess && (
-              <div className="flex items-start gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-300">
-                <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
-                <span className="font-mono text-[11px] leading-tight">
-                  {directSendSuccess}
+              <div className="flex items-center justify-between">
+                <span className="block font-mono text-[10px] uppercase text-zinc-400">
+                  Pratinjau Pesan yang Dikirim:
                 </span>
-              </div>
-            )}
-
-            {directSendError && (
-              <div className="flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs text-rose-300">
-                <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
-                <span className="font-mono text-[11px] leading-tight">
-                  {directSendError}
-                </span>
-              </div>
-            )}
-
-            {/* Tombol Utama Kirim Langsung */}
-            <button
-              type="submit"
-              disabled={isDirectSending}
-              className="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-amber-400 disabled:opacity-60"
-            >
-              {isDirectSending ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Mengirim Pesan Langsung ke Admin...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4" />
-                  <span>Kirim Pesan Langsung ke Admin</span>
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Bagian Barcode Scan Kamera (Alternatif / Manual) */}
-          <div className="mt-4 border-t border-white/[0.08] pt-3.5">
-            <div className="flex items-center justify-between">
-              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-zinc-400">
-                Atau Pindai Barcode Admin:
-              </span>
-            </div>
-
-            {/* Channel Switcher: WhatsApp vs Telegram */}
-            <div
-              role="tablist"
-              aria-label="Pilih Channel Barcode Admin"
-              className="mt-2 grid grid-cols-2 gap-1.5 rounded-lg border border-white/[0.08] bg-zinc-950 p-1"
-            >
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeChannel === "whatsapp"}
-                onClick={() => setActiveChannel("whatsapp")}
-                className={`flex min-h-[38px] items-center justify-center gap-2 rounded-md px-3 py-1.5 font-heading text-xs font-bold transition-colors ${
-                  activeChannel === "whatsapp"
-                    ? "bg-emerald-500 text-zinc-950"
-                    : "text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100"
-                }`}
-              >
-                <WhatsAppGlyph className="h-3.5 w-3.5" />
-                <span>Barcode WhatsApp</span>
-              </button>
-
-              <button
-                type="button"
-                role="tab"
-                aria-selected={activeChannel === "telegram"}
-                onClick={() => setActiveChannel("telegram")}
-                className={`flex min-h-[38px] items-center justify-center gap-2 rounded-md px-3 py-1.5 font-heading text-xs font-bold transition-colors ${
-                  activeChannel === "telegram"
-                    ? "bg-amber-500 text-zinc-950"
-                    : "text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100"
-                }`}
-              >
-                <TelegramGlyph className="h-3.5 w-3.5" />
-                <span>Barcode Telegram</span>
-              </button>
-            </div>
-
-            {/* QR Code + Admin Number Block */}
-            <div className="mt-2.5 flex items-center gap-3.5 rounded-xl border border-white/[0.08] bg-zinc-950 p-3">
-              <div className="shrink-0 rounded-lg border border-white/[0.15] bg-zinc-100 p-2">
-                <WhatsAppQrSvg
-                  matrix={qrMatrix}
-                  className="h-24 w-24"
-                  ariaLabel={`Barcode QR ${
-                    activeChannel === "whatsapp" ? "WhatsApp" : "Telegram"
-                  } Admin ${ADMIN_WHATSAPP_RAW}`}
-                />
-              </div>
-
-              <div className="min-w-0 flex-1 space-y-1.5 text-left">
-                <div>
-                  <span
-                    className={`block font-mono text-[10px] font-bold uppercase tracking-wider ${
-                      activeChannel === "whatsapp"
-                        ? "text-emerald-400"
-                        : "text-amber-400"
-                    }`}
-                  >
-                    {activeChannel === "whatsapp"
-                      ? "WHATSAPP ADMIN"
-                      : "TELEGRAM ADMIN"}
-                  </span>
-                  <p className="mt-0.5 font-mono text-sm font-extrabold text-zinc-50 tabular-nums">
-                    {ADMIN_WHATSAPP_RAW}
-                  </p>
-                  <p className="truncate font-mono text-[11px] text-zinc-400 tabular-nums">
-                    {activeChannel === "whatsapp"
-                      ? ADMIN_WHATSAPP_PLUS
-                      : ADMIN_TELEGRAM_DISPLAY}
-                  </p>
-                </div>
-
                 <button
                   type="button"
-                  onClick={handleCopyNumber}
-                  className="inline-flex min-h-[36px] w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.12] bg-zinc-900 px-2 py-1 font-mono text-[11px] font-semibold text-zinc-200 transition-colors hover:border-white/25 hover:bg-zinc-800"
+                  onClick={handleCopyMessage}
+                  className="inline-flex items-center gap-1 font-mono text-[10px] text-amber-400 hover:text-amber-300"
                 >
-                  {copiedNumber ? (
+                  {copiedMessage ? (
                     <>
-                      <Check className="h-3.5 w-3.5 text-emerald-400" />
-                      <span className="text-emerald-400">Nomor Disalin</span>
+                      <Check className="h-3 w-3 text-emerald-400" />
+                      <span className="text-emerald-400">Tersalin</span>
                     </>
                   ) : (
                     <>
-                      <Copy className="h-3.5 w-3.5 text-zinc-400" />
-                      <span>Salin Nomor Admin</span>
+                      <Copy className="h-3 w-3" />
+                      <span>Salin</span>
                     </>
                   )}
                 </button>
               </div>
+              <p className="mt-1 line-clamp-3 font-mono text-[11px] leading-relaxed text-zinc-300 whitespace-pre-wrap">
+                {formattedMessage}
+              </p>
             </div>
           </div>
 
-          {/* Fallback Manual Link & Navigasi Halaman */}
-          <div className="mt-3.5 space-y-2 border-t border-white/[0.08] pt-3">
-            <span className="block font-mono text-[10px] text-zinc-400">
-              Opsi Manual (Buka Web / App Eksternal):
-            </span>
-            <div className="grid grid-cols-2 gap-2">
+          {/* KONTEN BERDASARKAN CHANNEL YANG DIPILIH */}
+          {activeChannel === "whatsapp" ? (
+            /* =================== CHANNEL WHATSAPP =================== */
+            <div className="mt-3.5 space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-3 text-left">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400">
+                    <WhatsAppGlyph className="h-3 w-3" />
+                  </span>
+                  <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-emerald-400">
+                    Jalur WhatsApp Resmi ({ADMIN_WHATSAPP_RAW})
+                  </span>
+                </div>
+              </div>
+
+              <p className="font-mono text-[11px] text-zinc-300 leading-relaxed">
+                Pesan template otomatis akan langsung terisi saat Anda membuka
+                chat WhatsApp dengan Admin.
+              </p>
+
+              {/* Tombol Buka WhatsApp */}
               <a
                 href={whatsappUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 font-heading text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/20"
+                className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-emerald-400 shadow-md"
               >
-                <WhatsAppGlyph className="h-3.5 w-3.5 shrink-0" />
-                <span>Buka WhatsApp Web</span>
-                <ExternalLink className="h-3 w-3 shrink-0" />
+                <WhatsAppGlyph className="h-4 w-4 shrink-0" />
+                <span>Kirim via WhatsApp Admin ({ADMIN_WHATSAPP_RAW})</span>
+                <ExternalLink className="h-3.5 w-3.5 shrink-0" />
               </a>
 
-              <a
-                href={telegramUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex min-h-[40px] items-center justify-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 font-heading text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/20"
-              >
-                <TelegramGlyph className="h-3.5 w-3.5 shrink-0" />
-                <span>Buka Telegram Web</span>
-                <ExternalLink className="h-3 w-3 shrink-0" />
-              </a>
+              {/* Barcode QR WhatsApp untuk Scan HP */}
+              <div className="flex items-center gap-3 rounded-lg border border-white/[0.08] bg-zinc-950 p-2.5">
+                <div className="shrink-0 rounded-lg border border-white/[0.15] bg-zinc-100 p-1.5">
+                  <WhatsAppQrSvg
+                    matrix={qrMatrix}
+                    className="h-20 w-20"
+                    ariaLabel={`Barcode WhatsApp Admin ${ADMIN_WHATSAPP_RAW}`}
+                  />
+                </div>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <span className="block font-mono text-[10px] text-zinc-400">
+                    Atau scan kamera WA:
+                  </span>
+                  <p className="font-mono text-xs font-bold text-zinc-100 tabular-nums">
+                    {ADMIN_WHATSAPP_PLUS}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleCopyNumber}
+                    className="inline-flex items-center gap-1.5 rounded border border-white/[0.1] bg-zinc-900 px-2 py-1 font-mono text-[10px] text-zinc-300 hover:text-zinc-100"
+                  >
+                    {copiedNumber ? (
+                      <>
+                        <Check className="h-3 w-3 text-emerald-400" />
+                        <span className="text-emerald-400">Disalin</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="h-3 w-3" />
+                        <span>Salin Nomor</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
+          ) : (
+            /* =================== CHANNEL TELEGRAM =================== */
+            <form
+              onSubmit={handleTelegramDirectSend}
+              className="mt-3.5 space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.04] p-3 text-left"
+            >
+              <div className="flex items-center gap-2">
+                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-amber-500/20 text-amber-400">
+                  <Sparkles className="h-3 w-3" />
+                </span>
+                <span className="font-mono text-[11px] font-bold uppercase tracking-wider text-amber-400">
+                  Jalur Telegram Bot Instan (Tanpa Buka Web)
+                </span>
+              </div>
 
+              <p className="font-mono text-[11px] text-zinc-300 leading-relaxed">
+                Pesan Anda dikirimkan langsung oleh sistem ke bot Telegram Admin
+                (@{DEFAULT_TELEGRAM_BOT_USERNAME}) saat itu juga.
+              </p>
+
+              {/* Notifikasi Sukses / Error Telegram */}
+              {directSendSuccess && (
+                <div className="flex items-start gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5 text-xs text-emerald-300">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                  <span className="font-mono text-[11px] leading-tight">
+                    {directSendSuccess}
+                  </span>
+                </div>
+              )}
+
+              {directSendError && (
+                <div className="flex items-start gap-2 rounded-lg border border-rose-500/40 bg-rose-500/10 p-2.5 text-xs text-rose-300">
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                  <span className="font-mono text-[11px] leading-tight">
+                    {directSendError}
+                  </span>
+                </div>
+              )}
+
+              {/* Tombol Kirim Otomatis ke Telegram */}
+              <button
+                type="submit"
+                disabled={isDirectSending}
+                className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-amber-400 disabled:opacity-60 shadow-md"
+              >
+                {isDirectSending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-zinc-950" />
+                    <span>Mengirim Langsung ke Telegram Admin...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 text-zinc-950" />
+                    <span>Kirim Otomatis ke Telegram Admin</span>
+                  </>
+                )}
+              </button>
+
+              {/* Fallback Manual Link Telegram Web */}
+              <div className="flex items-center justify-between pt-1">
+                <a
+                  href={telegramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 font-mono text-[11px] text-amber-400 hover:underline"
+                >
+                  <TelegramGlyph className="h-3 w-3" />
+                  <span>Buka Chat Telegram Web Manual</span>
+                  <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleCopyNumber}
+                  className="font-mono text-[11px] text-zinc-400 hover:text-zinc-200"
+                >
+                  {copiedNumber ? "Disalin" : `ID: ${ADMIN_TELEGRAM_PHONE}`}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Link ke Halaman Barcode Lengkap */}
+          <div className="mt-3.5 border-t border-white/[0.08] pt-2.5">
             <Link
               href="/whatsapp"
               onClick={() => setIsOpen(false)}
-              className="flex min-h-[40px] w-full items-center justify-center gap-2 rounded-lg border border-white/[0.12] bg-zinc-900 px-3 py-1.5 font-heading text-xs font-semibold text-zinc-100 transition-colors hover:border-amber-500/50 hover:text-amber-400"
+              className="flex min-h-[38px] w-full items-center justify-center gap-2 rounded-lg border border-white/[0.1] bg-zinc-900 px-3 py-1.5 font-heading text-xs font-semibold text-zinc-300 transition-colors hover:border-amber-500/50 hover:text-amber-400"
             >
               <QrCode className="h-3.5 w-3.5 text-amber-400" />
-              <span>Buka Halaman Barcode WA &amp; Telegram</span>
+              <span>Buka Halaman Barcode WA &amp; Telegram Lengkap</span>
               <ArrowUpRight className="h-3.5 w-3.5" />
             </Link>
           </div>
@@ -468,7 +539,7 @@ export function FloatingWhatsAppButton() {
         onClick={() => setIsOpen((prev) => !prev)}
         aria-expanded={isOpen}
         aria-haspopup="dialog"
-        aria-label={`Buka Pesan Langsung & Barcode Admin (${ADMIN_WHATSAPP_RAW})`}
+        aria-label={`Buka Layanan Pesan & Barcode Admin WhatsApp/Telegram (${ADMIN_WHATSAPP_RAW})`}
         className="group flex min-h-[52px] items-center gap-2.5 rounded-xl border border-emerald-500/50 bg-[#121215] px-3.5 py-2.5 text-left shadow-xl transition-colors hover:border-amber-400 hover:bg-zinc-900"
       >
         <div className="flex items-center -space-x-1.5">

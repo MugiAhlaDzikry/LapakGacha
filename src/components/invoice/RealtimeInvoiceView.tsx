@@ -545,15 +545,15 @@ export function RealtimeInvoiceView({
 
             <div className="mt-5 space-y-2.5 border-t border-white/[0.08] pt-4">
               {/* Direct Instant Confirmation to Admin Telegram (Tanpa Redirect Web) */}
-              <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.05] p-3">
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.05] p-3 text-left">
                 <div className="flex items-center gap-1.5">
                   <Sparkles className="h-3.5 w-3.5 text-amber-400" />
                   <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-amber-400">
-                    Kirim Konfirmasi Otomatis ke Admin
+                    Opsi 1: Kirim Otomatis ke Telegram Admin
                   </span>
                 </div>
                 <p className="mt-1 font-mono text-[11px] text-zinc-400 leading-tight">
-                  Kirim rincian invoice ini langsung ke Admin tanpa perlu beralih ke WhatsApp Web atau Telegram Web.
+                  Kirim rincian invoice langsung ke bot Telegram Admin (@Sukijem_bot) tanpa perlu beralih ke WhatsApp Web atau Telegram Web.
                 </p>
 
                 {directNotifySuccess && (
@@ -589,15 +589,40 @@ export function RealtimeInvoiceView({
                   {isDirectNotifying ? (
                     <>
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      <span>Mengirim ke Admin Langsung...</span>
+                      <span>Mengirim ke Telegram Admin...</span>
                     </>
                   ) : (
                     <>
-                      <Send className="h-3.5 w-3.5" />
-                      <span>Kirim Konfirmasi Langsung ke Admin</span>
+                      <TelegramGlyph className="h-3.5 w-3.5" />
+                      <span>Kirim Otomatis ke Telegram Admin</span>
                     </>
                   )}
                 </button>
+              </div>
+
+              {/* Opsi 2: WhatsApp Chat Langsung */}
+              <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.05] p-3 text-left">
+                <div className="flex items-center gap-1.5">
+                  <WhatsAppGlyph className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                    Opsi 2: Chat WhatsApp Admin Resmi
+                  </span>
+                </div>
+                <p className="mt-1 font-mono text-[11px] text-zinc-400 leading-tight">
+                  Hubungi nomor WhatsApp resmi {ADMIN_WHATSAPP_RAW} dengan format pesan invoice yang sudah terisi otomatis.
+                </p>
+
+                <a
+                  href={buildAdminWhatsAppUrl(
+                    buildInvoiceWhatsAppMessage(transaction)
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2.5 flex min-h-[42px] w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-emerald-400 tabular-nums"
+                >
+                  <WhatsAppGlyph className="h-3.5 w-3.5 shrink-0" />
+                  <span>Buka Chat WhatsApp ({ADMIN_WHATSAPP_RAW})</span>
+                </a>
               </div>
 
               <div className="flex flex-wrap gap-2.5">

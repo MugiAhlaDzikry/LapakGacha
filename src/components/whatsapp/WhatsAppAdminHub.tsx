@@ -721,16 +721,16 @@ export function WhatsAppAdminHub({
                 </span>
                 <div>
                   <h3 className="font-heading text-sm font-bold text-zinc-50">
-                    Kirim Pesan Otomatis Langsung ke Admin
+                    Kirim Otomatis ke Telegram Admin (@{ADMIN_TELEGRAM_DISPLAY})
                   </h3>
                   <span className="font-mono text-[11px] text-amber-400">
-                    INSTANT DISPATCH · TANPA REDIRECT WEB
+                    TELEGRAM BOT INSTAN · TANPA BUKA APLIKASI
                   </span>
                 </div>
               </div>
 
               <p className="mt-2 text-xs leading-relaxed text-zinc-300">
-                Sistem akan langsung mengirimkan rincian template pesan Anda di atas ke Admin KRONOS.GG tanpa perlu membuka browser WhatsApp Web atau Telegram Web.
+                Sistem akan langsung mengirimkan rincian pesan template Anda di atas ke akun Telegram Admin tanpa perlu membuka browser WhatsApp Web atau Telegram Web.
               </p>
 
               {directSendSuccess && (
@@ -766,12 +766,12 @@ export function WhatsAppAdminHub({
                 {isDirectSending ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin text-zinc-950" />
-                    <span>Mengirim Langsung ke Admin...</span>
+                    <span>Mengirim ke Telegram Admin...</span>
                   </>
                 ) : (
                   <>
-                    <Send className="h-4 w-4 text-zinc-950" />
-                    <span>Kirim Pesan Langsung ke Admin Sekarang</span>
+                    <TelegramGlyph className="h-4 w-4 text-zinc-950" />
+                    <span>Kirim Otomatis ke Telegram Admin</span>
                   </>
                 )}
               </button>
