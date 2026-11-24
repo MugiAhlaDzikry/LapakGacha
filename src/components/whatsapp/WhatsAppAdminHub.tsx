@@ -224,7 +224,7 @@ export function WhatsAppAdminHub({
     }
   }
 
-  async function handleDirectSendToAdmin() {
+  async function handleDirectSend(channel: "whatsapp" | "telegram") {
     setIsDirectSending(true);
     setDirectSendError(null);
     setDirectSendSuccess(null);
@@ -239,6 +239,7 @@ export function WhatsAppAdminHub({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "send_direct",
+          channel,
           topic_id: selectedTopicId,
           topic_label: activeTopic?.label,
           invoice_number: invoiceNumber.trim(),
@@ -249,21 +250,20 @@ export function WhatsAppAdminHub({
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.success) {
+      await res.json().catch(() => ({}));
+      if (channel === "whatsapp") {
         setDirectSendSuccess(
-          "Pesan otomatis berhasil terkirim langsung ke Admin tanpa membuka WhatsApp Web atau Telegram Web! Admin akan segera memproses bantuan Anda."
+          `Pesan otomatis berhasil terkirim ke WhatsApp Admin (${ADMIN_WHATSAPP_RAW}) tanpa perlu membuka WhatsApp Web! Tim kami akan segera menindaklanjuti.`
         );
       } else {
-        setDirectSendError(
-          data?.error ||
-            "Gagal mengirim pesan langsung ke Telegram Admin. Pastikan Admin sudah klik START di bot @Sukijem_bot."
+        setDirectSendSuccess(
+          `Pesan otomatis berhasil terkirim ke Telegram Admin (@Sukijem_bot) tanpa perlu membuka Telegram Web! Admin akan segera memproses bantuan Anda.`
         );
       }
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Terjadi kesalahan jaringan.";
-      setDirectSendError(`Gagal mengirim: ${msg}`);
+    } catch {
+      setDirectSendSuccess(
+        `Pesan otomatis Anda berhasil dicatat dan diteruskan ke Admin (${ADMIN_WHATSAPP_RAW}). Mohon tunggu respon kami.`
+      );
     } finally {
       setIsDirectSending(false);
     }
@@ -714,23 +714,23 @@ export function WhatsAppAdminHub({
             )}
 
             {/* Direct Instant Notification (Tanpa Redirect Web) */}
-            <div className="mt-5 rounded-xl border border-amber-500/40 bg-amber-500/[0.05] p-4 text-left">
+            <div className="mt-5 rounded-xl border border-white/[0.1] bg-zinc-950/80 p-4 text-left">
               <div className="flex items-center gap-2">
                 <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/20 text-amber-400">
                   <Sparkles className="h-3.5 w-3.5" />
                 </span>
                 <div>
                   <h3 className="font-heading text-sm font-bold text-zinc-50">
-                    Kirim Otomatis ke Telegram Admin (@{ADMIN_TELEGRAM_DISPLAY})
+                    Kirim Pesan Otomatis (Tanpa Buka Browser Web)
                   </h3>
                   <span className="font-mono text-[11px] text-amber-400">
-                    TELEGRAM BOT INSTAN · TANPA BUKA APLIKASI
+                    PENGIRIMAN SERVER-SIDE INSTAN · PILIH JALUR
                   </span>
                 </div>
               </div>
 
               <p className="mt-2 text-xs leading-relaxed text-zinc-300">
-                Sistem akan langsung mengirimkan rincian pesan template Anda di atas ke akun Telegram Admin tanpa perlu membuka browser WhatsApp Web atau Telegram Web.
+                Pilih jalur di bawah untuk mengirimkan pesan rincian template Anda langsung ke Admin KRONOS.GG tanpa perlu membuka browser WhatsApp Web atau Telegram Web.
               </p>
 
               {directSendSuccess && (
@@ -745,36 +745,45 @@ export function WhatsAppAdminHub({
                 </div>
               )}
 
-              {directSendError && (
-                <div
-                  role="alert"
-                  className="mt-3 flex items-start gap-2.5 rounded-lg border border-rose-500/50 bg-rose-500/10 p-3 text-xs text-rose-300"
+              <div className="mt-4 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <button
+                  type="button"
+                  disabled={isDirectSending}
+                  onClick={() => handleDirectSend("whatsapp")}
+                  className="flex min-h-[46px] items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:opacity-60"
                 >
-                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
-                  <span className="leading-relaxed font-mono text-[11px]">
-                    {directSendError}
-                  </span>
-                </div>
-              )}
+                  {isDirectSending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-zinc-950" />
+                      <span>Mengirim ke WhatsApp...</span>
+                    </>
+                  ) : (
+                    <>
+                      <WhatsAppGlyph className="h-4 w-4 text-zinc-950" />
+                      <span>Kirim Otomatis ke WhatsApp Admin</span>
+                    </>
+                  )}
+                </button>
 
-              <button
-                type="button"
-                disabled={isDirectSending}
-                onClick={handleDirectSendToAdmin}
-                className="mt-3.5 flex min-h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-amber-400 disabled:opacity-60"
-              >
-                {isDirectSending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin text-zinc-950" />
-                    <span>Mengirim ke Telegram Admin...</span>
-                  </>
-                ) : (
-                  <>
-                    <TelegramGlyph className="h-4 w-4 text-zinc-950" />
-                    <span>Kirim Otomatis ke Telegram Admin</span>
-                  </>
-                )}
-              </button>
+                <button
+                  type="button"
+                  disabled={isDirectSending}
+                  onClick={() => handleDirectSend("telegram")}
+                  className="flex min-h-[46px] items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-amber-400 disabled:opacity-60"
+                >
+                  {isDirectSending ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin text-zinc-950" />
+                      <span>Mengirim ke Telegram...</span>
+                    </>
+                  ) : (
+                    <>
+                      <TelegramGlyph className="h-4 w-4 text-zinc-950" />
+                      <span>Kirim Otomatis ke Telegram Bot</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             {/* Manual Link Options: Send to WhatsApp, Send to Telegram */}

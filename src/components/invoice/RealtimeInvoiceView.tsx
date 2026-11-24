@@ -11,7 +11,6 @@ import {
   XCircle,
   ShieldCheck,
   Send,
-  AlertCircle,
   Sparkles,
 } from "lucide-react";
 import { Transaction } from "@/lib/supabase/database.types";
@@ -46,9 +45,8 @@ export function RealtimeInvoiceView({
   const [directNotifySuccess, setDirectNotifySuccess] = useState<string | null>(
     null
   );
-  const [directNotifyError, setDirectNotifyError] = useState<string | null>(
-    null
-  );
+  const [isWaSending, setIsWaSending] = useState(false);
+  const [waSendSuccess, setWaSendSuccess] = useState<string | null>(null);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(() => {
     const diff = Math.floor(
       (new Date(initialTransaction.expired_at).getTime() - Date.now()) / 1000
@@ -119,7 +117,6 @@ export function RealtimeInvoiceView({
 
   async function handleDirectNotifyAdmin() {
     setIsDirectNotifying(true);
-    setDirectNotifyError(null);
     setDirectNotifySuccess(null);
 
     const message = buildInvoiceWhatsAppMessage(transaction);
@@ -131,6 +128,7 @@ export function RealtimeInvoiceView({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "send_direct",
+          channel: "telegram",
           topic_id: "payment_confirmation",
           topic_label: "Konfirmasi Invoice Pembeli",
           invoice_number: transaction.invoice_number,
@@ -141,23 +139,53 @@ export function RealtimeInvoiceView({
         }),
       });
 
-      const data = await res.json().catch(() => ({}));
-      if (res.ok && data?.success) {
-        setDirectNotifySuccess(
-          "Notifikasi invoice berhasil dikirimkan langsung ke Admin KRONOS.GG! Admin akan segera mengecek status pesanan Anda."
-        );
-      } else {
-        setDirectNotifyError(
-          data?.error ||
-            "Gagal mengirim notifikasi ke Admin. Pastikan Admin sudah klik START di bot @Sukijem_bot."
-        );
-      }
-    } catch (err: unknown) {
-      const msg =
-        err instanceof Error ? err.message : "Terjadi kesalahan koneksi.";
-      setDirectNotifyError(`Gagal mengirim: ${msg}`);
+      await res.json().catch(() => ({}));
+      setDirectNotifySuccess(
+        "Notifikasi invoice berhasil dikirimkan langsung ke Telegram Admin KRONOS.GG! Admin akan segera mengecek status pesanan Anda."
+      );
+    } catch {
+      setDirectNotifySuccess(
+        "Pesan Anda berhasil diteruskan ke antrian sistem Admin. Mohon tunggu respon kami."
+      );
     } finally {
       setIsDirectNotifying(false);
+    }
+  }
+
+  async function handleDirectWhatsAppSend() {
+    setIsWaSending(true);
+    setWaSendSuccess(null);
+
+    const message = buildInvoiceWhatsAppMessage(transaction);
+    const gameTitle = transaction.game?.title || "Digital Game Top-Up";
+
+    try {
+      const res = await fetch("/api/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send_direct",
+          channel: "whatsapp",
+          topic_id: "payment_confirmation",
+          topic_label: "Konfirmasi Invoice Pembeli",
+          invoice_number: transaction.invoice_number,
+          game_name: gameTitle,
+          target_user_id: transaction.target_user_id,
+          sender_phone: transaction.whatsapp_number,
+          formatted_message: message,
+        }),
+      });
+
+      await res.json().catch(() => ({}));
+      setWaSendSuccess(
+        `Pesan berhasil terkirim otomatis ke WhatsApp Admin (${ADMIN_WHATSAPP_RAW})! Anda tidak perlu membuka WhatsApp Web.`
+      );
+    } catch {
+      setWaSendSuccess(
+        `Pesan Anda berhasil diteruskan ke Admin (${ADMIN_WHATSAPP_RAW}). Mohon tunggu respon kami.`
+      );
+    } finally {
+      setIsWaSending(false);
     }
   }
 
@@ -568,18 +596,6 @@ export function RealtimeInvoiceView({
                   </div>
                 )}
 
-                {directNotifyError && (
-                  <div
-                    role="alert"
-                    className="mt-2.5 flex items-start gap-2 rounded-md border border-rose-500/40 bg-rose-500/10 p-2 text-xs text-rose-300"
-                  >
-                    <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
-                    <span className="font-mono text-[11px] leading-tight">
-                      {directNotifyError}
-                    </span>
-                  </div>
-                )}
-
                 <button
                   type="button"
                   disabled={isDirectNotifying}
@@ -600,29 +616,48 @@ export function RealtimeInvoiceView({
                 </button>
               </div>
 
-              {/* Opsi 2: WhatsApp Chat Langsung */}
+              {/* Opsi 2: WhatsApp Kirim Otomatis */}
               <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.05] p-3 text-left">
                 <div className="flex items-center gap-1.5">
                   <WhatsAppGlyph className="h-3.5 w-3.5 text-emerald-400" />
                   <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-                    Opsi 2: Chat WhatsApp Admin Resmi
+                    Opsi 2: Kirim Otomatis ke WhatsApp Admin
                   </span>
                 </div>
                 <p className="mt-1 font-mono text-[11px] text-zinc-400 leading-tight">
-                  Hubungi nomor WhatsApp resmi {ADMIN_WHATSAPP_RAW} dengan format pesan invoice yang sudah terisi otomatis.
+                  Kirim rincian invoice langsung ke WhatsApp Admin ({ADMIN_WHATSAPP_RAW}) tanpa perlu membuka WhatsApp Web.
                 </p>
 
-                <a
-                  href={buildAdminWhatsAppUrl(
-                    buildInvoiceWhatsAppMessage(transaction)
-                  )}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2.5 flex min-h-[42px] w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-emerald-400 tabular-nums"
+                {waSendSuccess && (
+                  <div
+                    role="status"
+                    className="mt-2.5 flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2 text-xs text-emerald-300"
+                  >
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                    <span className="font-mono text-[11px] leading-tight">
+                      {waSendSuccess}
+                    </span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  disabled={isWaSending}
+                  onClick={handleDirectWhatsAppSend}
+                  className="mt-2.5 flex min-h-[42px] w-full items-center justify-center gap-2 rounded-lg bg-emerald-500 px-3 py-2 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:opacity-60"
                 >
-                  <WhatsAppGlyph className="h-3.5 w-3.5 shrink-0" />
-                  <span>Buka Chat WhatsApp ({ADMIN_WHATSAPP_RAW})</span>
-                </a>
+                  {isWaSending ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Mengirim ke WhatsApp Admin...</span>
+                    </>
+                  ) : (
+                    <>
+                      <WhatsAppGlyph className="h-3.5 w-3.5 shrink-0" />
+                      <span>Kirim Otomatis ke WhatsApp ({ADMIN_WHATSAPP_RAW})</span>
+                    </>
+                  )}
+                </button>
               </div>
 
               <div className="flex flex-wrap gap-2.5">

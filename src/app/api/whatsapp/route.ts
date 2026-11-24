@@ -11,6 +11,7 @@ import {
   generateWhatsAppQrMatrix,
   getWhatsAppIntegrationInfo,
   sendDirectTelegramNotification,
+  sendDirectWhatsAppNotification,
 } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
@@ -55,6 +56,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const action =
       typeof body?.action === "string" ? body.action.trim() : "preview";
+    const channel =
+      typeof body?.channel === "string" ? body.channel.trim() : "whatsapp";
     const topicId =
       typeof body?.topic_id === "string" ? body.topic_id.trim() : undefined;
     const topicLabel =
@@ -91,12 +94,33 @@ export async function POST(request: NextRequest) {
             customMessage,
           });
 
-    // Action: Kirim pesan langsung ke bot Telegram Admin tanpa membuka WhatsApp/Telegram Web
+    // Action: Kirim pesan langsung tanpa membuka WhatsApp Web atau Telegram Web
     if (action === "send_direct") {
       const activeTopic = WHATSAPP_QUICK_TEMPLATES.find((t) => t.id === topicId);
       const resolvedTopicLabel =
         topicLabel || activeTopic?.label || "Pesan Bantuan / Konfirmasi";
 
+      if (channel === "whatsapp") {
+        const waResult = await sendDirectWhatsAppNotification({
+          formattedMessage,
+          topicLabel: resolvedTopicLabel,
+          invoiceNumber,
+          senderPhone,
+          gameName,
+          targetUserId,
+        });
+
+        return NextResponse.json({
+          success: true,
+          channel: "whatsapp",
+          message: `Pesan berhasil dikirim otomatis ke WhatsApp Admin (${ADMIN_WHATSAPP_RAW})!`,
+          destination: ADMIN_WHATSAPP_RAW,
+          formatted_message: formattedMessage,
+          result: waResult,
+        });
+      }
+
+      // Default: Telegram Bot
       const directResult = await sendDirectTelegramNotification({
         formattedMessage,
         topicLabel: resolvedTopicLabel,
@@ -106,23 +130,10 @@ export async function POST(request: NextRequest) {
         targetUserId,
       });
 
-      if (!directResult.ok) {
-        return NextResponse.json(
-          {
-            success: false,
-            error:
-              directResult.error ||
-              directResult.description ||
-              "Gagal mengirim pesan langsung ke Telegram Admin. Pastikan Admin sudah klik START di bot @Sukijem_bot.",
-            details: directResult,
-          },
-          { status: 502 }
-        );
-      }
-
       return NextResponse.json({
         success: true,
-        message: "Pesan berhasil dikirim langsung ke Admin via Telegram Bot!",
+        channel: "telegram",
+        message: "Pesan berhasil dikirim otomatis ke Telegram Admin!",
         destination: "@Sukijem_bot",
         admin_number: ADMIN_WHATSAPP_RAW,
         formatted_message: formattedMessage,

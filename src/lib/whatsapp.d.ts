@@ -65,4 +65,13 @@ export function sendDirectTelegramNotification(params: {
   senderPhone?: string;
   gameName?: string;
   targetUserId?: string;
-}): Promise<{ ok: boolean; description?: string; error?: string; result?: any }>;
+}): Promise<{ ok: boolean; description?: string; error?: string; result?: any; queued?: boolean; warning?: string }>;
+
+export function sendDirectWhatsAppNotification(params: {
+  formattedMessage: string;
+  topicLabel?: string;
+  invoiceNumber?: string;
+  senderPhone?: string;
+  gameName?: string;
+  targetUserId?: string;
+}): Promise<{ ok: boolean; provider?: string; destination?: string; note?: string; error?: string; result?: any }>;
