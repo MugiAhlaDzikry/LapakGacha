@@ -9,6 +9,9 @@ export const ADMIN_WHATSAPP_JID: string;
 export const ADMIN_TELEGRAM_RAW: string;
 export const ADMIN_TELEGRAM_PHONE: string;
 export const ADMIN_TELEGRAM_DISPLAY: string;
+export const DEFAULT_TELEGRAM_BOT_TOKEN: string;
+export const DEFAULT_TELEGRAM_ADMIN_CHAT_ID: string;
+export const DEFAULT_TELEGRAM_BOT_USERNAME: string;
 
 export interface WhatsAppQuickTemplate {
   id: string;
@@ -55,3 +58,11 @@ export function buildFormattedSupportMessage(
 export function buildInvoiceWhatsAppMessage(transaction: Transaction): string;
 export function getWhatsAppIntegrationInfo(): WhatsAppIntegrationInfo;
 export function generateWhatsAppQrMatrix(payload?: string): boolean[][];
+export function sendDirectTelegramNotification(params: {
+  formattedMessage: string;
+  topicLabel?: string;
+  invoiceNumber?: string;
+  senderPhone?: string;
+  gameName?: string;
+  targetUserId?: string;
+}): Promise<{ ok: boolean; description?: string; error?: string; result?: any }>;

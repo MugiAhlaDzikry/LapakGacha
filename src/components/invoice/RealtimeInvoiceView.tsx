@@ -10,6 +10,9 @@ import {
   Loader2,
   XCircle,
   ShieldCheck,
+  Send,
+  AlertCircle,
+  Sparkles,
 } from "lucide-react";
 import { Transaction } from "@/lib/supabase/database.types";
 import { createClient } from "@/lib/supabase/client";
@@ -39,6 +42,13 @@ export function RealtimeInvoiceView({
   const [copiedInvoice, setCopiedInvoice] = useState(false);
   const [copiedSn, setCopiedSn] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [isDirectNotifying, setIsDirectNotifying] = useState(false);
+  const [directNotifySuccess, setDirectNotifySuccess] = useState<string | null>(
+    null
+  );
+  const [directNotifyError, setDirectNotifyError] = useState<string | null>(
+    null
+  );
   const [remainingSeconds, setRemainingSeconds] = useState<number>(() => {
     const diff = Math.floor(
       (new Date(initialTransaction.expired_at).getTime() - Date.now()) / 1000
@@ -105,6 +115,50 @@ export function RealtimeInvoiceView({
     navigator.clipboard?.writeText(transaction.serial_number);
     setCopiedSn(true);
     setTimeout(() => setCopiedSn(false), 2000);
+  }
+
+  async function handleDirectNotifyAdmin() {
+    setIsDirectNotifying(true);
+    setDirectNotifyError(null);
+    setDirectNotifySuccess(null);
+
+    const message = buildInvoiceWhatsAppMessage(transaction);
+    const gameTitle = transaction.game?.title || "Digital Game Top-Up";
+
+    try {
+      const res = await fetch("/api/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send_direct",
+          topic_id: "payment_confirmation",
+          topic_label: "Konfirmasi Invoice Pembeli",
+          invoice_number: transaction.invoice_number,
+          game_name: gameTitle,
+          target_user_id: transaction.target_user_id,
+          sender_phone: transaction.whatsapp_number,
+          formatted_message: message,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success) {
+        setDirectNotifySuccess(
+          "Notifikasi invoice berhasil dikirimkan langsung ke Admin KRONOS.GG! Admin akan segera mengecek status pesanan Anda."
+        );
+      } else {
+        setDirectNotifyError(
+          data?.error ||
+            "Gagal mengirim notifikasi ke Admin. Pastikan Admin sudah klik START di bot @Sukijem_bot."
+        );
+      }
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Terjadi kesalahan koneksi.";
+      setDirectNotifyError(`Gagal mengirim: ${msg}`);
+    } finally {
+      setIsDirectNotifying(false);
+    }
   }
 
   async function handleSimulateSuccess() {
@@ -490,6 +544,62 @@ export function RealtimeInvoiceView({
             </dl>
 
             <div className="mt-5 space-y-2.5 border-t border-white/[0.08] pt-4">
+              {/* Direct Instant Confirmation to Admin Telegram (Tanpa Redirect Web) */}
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/[0.05] p-3">
+                <div className="flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+                  <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-amber-400">
+                    Kirim Konfirmasi Otomatis ke Admin
+                  </span>
+                </div>
+                <p className="mt-1 font-mono text-[11px] text-zinc-400 leading-tight">
+                  Kirim rincian invoice ini langsung ke Admin tanpa perlu beralih ke WhatsApp Web atau Telegram Web.
+                </p>
+
+                {directNotifySuccess && (
+                  <div
+                    role="status"
+                    className="mt-2.5 flex items-start gap-2 rounded-md border border-emerald-500/40 bg-emerald-500/10 p-2 text-xs text-emerald-300"
+                  >
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                    <span className="font-mono text-[11px] leading-tight">
+                      {directNotifySuccess}
+                    </span>
+                  </div>
+                )}
+
+                {directNotifyError && (
+                  <div
+                    role="alert"
+                    className="mt-2.5 flex items-start gap-2 rounded-md border border-rose-500/40 bg-rose-500/10 p-2 text-xs text-rose-300"
+                  >
+                    <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                    <span className="font-mono text-[11px] leading-tight">
+                      {directNotifyError}
+                    </span>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  disabled={isDirectNotifying}
+                  onClick={handleDirectNotifyAdmin}
+                  className="mt-2.5 flex min-h-[42px] w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-3 py-2 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-amber-400 disabled:opacity-60"
+                >
+                  {isDirectNotifying ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Mengirim ke Admin Langsung...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-3.5 w-3.5" />
+                      <span>Kirim Konfirmasi Langsung ke Admin</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
               <div className="flex flex-wrap gap-2.5">
                 <Link
                   href={`/topup/${transaction.game?.slug || "mobile-legends"}`}
@@ -515,7 +625,7 @@ export function RealtimeInvoiceView({
                   className="flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-3 py-2 font-mono text-xs font-semibold text-emerald-400 transition-colors hover:bg-emerald-500/25 tabular-nums"
                 >
                   <WhatsAppGlyph className="h-4 w-4 shrink-0" />
-                  <span>WA Admin ({ADMIN_WHATSAPP_RAW})</span>
+                  <span>WA Web ({ADMIN_WHATSAPP_RAW})</span>
                 </a>
 
                 <a
@@ -527,7 +637,7 @@ export function RealtimeInvoiceView({
                   className="flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/15 px-3 py-2 font-mono text-xs font-semibold text-amber-400 transition-colors hover:bg-amber-500/25 tabular-nums"
                 >
                   <TelegramGlyph className="h-4 w-4 shrink-0" />
-                  <span>Telegram Admin</span>
+                  <span>Telegram Web</span>
                 </a>
               </div>
             </div>

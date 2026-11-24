@@ -7,6 +7,9 @@ export const ADMIN_WHATSAPP_JID = "6289525849290@c.us";
 export const ADMIN_TELEGRAM_RAW = "089525849290";
 export const ADMIN_TELEGRAM_PHONE = "+6289525849290";
 export const ADMIN_TELEGRAM_DISPLAY = "t.me/+6289525849290";
+export const DEFAULT_TELEGRAM_BOT_TOKEN = "9141625587:AAFCcHoajscaqMpXP25DeEHC9rA7ZUY44UY";
+export const DEFAULT_TELEGRAM_ADMIN_CHAT_ID = "5871354908";
+export const DEFAULT_TELEGRAM_BOT_USERNAME = "Sukijem_bot";
 
 export const WHATSAPP_QUICK_TEMPLATES = [
   {
@@ -186,12 +189,78 @@ export function getWhatsAppIntegrationInfo() {
     adminJid: ADMIN_WHATSAPP_JID,
     telegramPhone: ADMIN_TELEGRAM_PHONE,
     telegramDisplay: ADMIN_TELEGRAM_DISPLAY,
+    telegramBotUsername: DEFAULT_TELEGRAM_BOT_USERNAME,
     directUrl: buildAdminWhatsAppUrl(),
     defaultChatUrl: buildAdminWhatsAppUrl(defaultTemplateMsg),
     directTelegramUrl: buildAdminTelegramUrl(),
     defaultTelegramChatUrl: buildAdminTelegramUrl(defaultTemplateMsg),
     templatesCount: WHATSAPP_QUICK_TEMPLATES.length,
   };
+}
+
+function escapeTelegramHtml(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
+ * Mengirimkan pesan pembeli secara langsung ke Telegram Admin via Bot API (tanpa redirect web)
+ */
+export async function sendDirectTelegramNotification({
+  formattedMessage,
+  topicLabel,
+  invoiceNumber,
+  senderPhone,
+  gameName,
+  targetUserId,
+}) {
+  const token =
+    process.env.TELEGRAM_BOT_TOKEN || DEFAULT_TELEGRAM_BOT_TOKEN;
+  const chatId =
+    process.env.TELEGRAM_ADMIN_CHAT_ID || DEFAULT_TELEGRAM_ADMIN_CHAT_ID;
+
+  if (!token || !chatId) {
+    return { ok: false, error: "Bot token atau Admin Chat ID belum diset." };
+  }
+
+  const timestamp = new Date().toLocaleString("id-ID", {
+    timeZone: "Asia/Jakarta",
+  });
+
+  let html = `🔔 <b>PESAN BARU DARI WEBSITE KRONOS.GG</b>\n`;
+  html += `⏱ <i>Waktu: ${timestamp} WIB</i>\n\n`;
+  if (topicLabel) html += `📋 <b>Topik:</b> ${escapeTelegramHtml(topicLabel)}\n`;
+  if (invoiceNumber) html += `🧾 <b>No. Invoice:</b> <code>${escapeTelegramHtml(invoiceNumber)}</code>\n`;
+  if (gameName) html += `🎮 <b>Game:</b> ${escapeTelegramHtml(gameName)}\n`;
+  if (targetUserId) html += `🆔 <b>ID Tujuan:</b> <code>${escapeTelegramHtml(targetUserId)}</code>\n`;
+  if (senderPhone) html += `📱 <b>Kontak Pembeli:</b> <code>${escapeTelegramHtml(senderPhone)}</code>\n`;
+  html += `\n💬 <b>Isi Pesan Pembeli:</b>\n<blockquote>${escapeTelegramHtml(formattedMessage)}</blockquote>\n`;
+  html += `\n<i>Notifikasi dikirim otomatis dari website LapakGacha langsung ke Telegram Admin.</i>`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: html,
+        parse_mode: "HTML",
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+    const data = await res.json();
+    return data;
+  } catch (err) {
+    console.error("Direct Telegram send error:", err);
+    return { ok: false, error: err?.message || "Gagal menghubungi Telegram API" };
+  }
 }
 
 // ============================================================================

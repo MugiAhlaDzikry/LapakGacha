@@ -4,6 +4,7 @@ import React, { useMemo, useState } from "react";
 import {
   AlertCircle,
   Check,
+  CheckCircle2,
   Copy,
   Download,
   ExternalLink,
@@ -11,6 +12,8 @@ import {
   QrCode,
   RefreshCw,
   RotateCcw,
+  Send,
+  Sparkles,
 } from "lucide-react";
 import {
   ADMIN_TELEGRAM_DISPLAY,
@@ -60,6 +63,11 @@ export function WhatsAppAdminHub({
   const [syncNotice, setSyncNotice] = useState<string | null>(null);
   const [copiedNumber, setCopiedNumber] = useState<boolean>(false);
   const [copiedMessage, setCopiedMessage] = useState<boolean>(false);
+  const [isDirectSending, setIsDirectSending] = useState<boolean>(false);
+  const [directSendSuccess, setDirectSendSuccess] = useState<string | null>(
+    null
+  );
+  const [directSendError, setDirectSendError] = useState<string | null>(null);
 
   const formattedMessage = useMemo(
     () =>
@@ -213,6 +221,51 @@ export function WhatsAppAdminHub({
       );
     } finally {
       setIsSyncing(false);
+    }
+  }
+
+  async function handleDirectSendToAdmin() {
+    setIsDirectSending(true);
+    setDirectSendError(null);
+    setDirectSendSuccess(null);
+
+    const activeTopic = WHATSAPP_QUICK_TEMPLATES.find(
+      (t) => t.id === selectedTopicId
+    );
+
+    try {
+      const res = await fetch("/api/whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "send_direct",
+          topic_id: selectedTopicId,
+          topic_label: activeTopic?.label,
+          invoice_number: invoiceNumber.trim(),
+          game_name: gameName.trim(),
+          target_user_id: targetUserId.trim(),
+          sender_phone: senderPhone.trim(),
+          formatted_message: formattedMessage,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.success) {
+        setDirectSendSuccess(
+          "Pesan otomatis berhasil terkirim langsung ke Admin tanpa membuka WhatsApp Web atau Telegram Web! Admin akan segera memproses bantuan Anda."
+        );
+      } else {
+        setDirectSendError(
+          data?.error ||
+            "Gagal mengirim pesan langsung ke Telegram Admin. Pastikan Admin sudah klik START di bot @Sukijem_bot."
+        );
+      }
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Terjadi kesalahan jaringan.";
+      setDirectSendError(`Gagal mengirim: ${msg}`);
+    } finally {
+      setIsDirectSending(false);
     }
   }
 
@@ -660,33 +713,102 @@ export function WhatsAppAdminHub({
               </div>
             )}
 
-            {/* Action Buttons: Send to WhatsApp, Send to Telegram, Refresh QR */}
-            <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <a
-                href={whatsappChatUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-emerald-400 sm:text-sm"
-              >
-                <WhatsAppGlyph className="h-4 w-4 shrink-0" />
-                <span className="tabular-nums">
-                  Kirim ke WhatsApp ({ADMIN_WHATSAPP_RAW})
+            {/* Direct Instant Notification (Tanpa Redirect Web) */}
+            <div className="mt-5 rounded-xl border border-amber-500/40 bg-amber-500/[0.05] p-4 text-left">
+              <div className="flex items-center gap-2">
+                <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/20 text-amber-400">
+                  <Sparkles className="h-3.5 w-3.5" />
                 </span>
-                <ExternalLink className="h-4 w-4 shrink-0" />
-              </a>
+                <div>
+                  <h3 className="font-heading text-sm font-bold text-zinc-50">
+                    Kirim Pesan Otomatis Langsung ke Admin
+                  </h3>
+                  <span className="font-mono text-[11px] text-amber-400">
+                    INSTANT DISPATCH · TANPA REDIRECT WEB
+                  </span>
+                </div>
+              </div>
 
-              <a
-                href={telegramChatUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[48px] items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-amber-400 sm:text-sm"
+              <p className="mt-2 text-xs leading-relaxed text-zinc-300">
+                Sistem akan langsung mengirimkan rincian template pesan Anda di atas ke Admin KRONOS.GG tanpa perlu membuka browser WhatsApp Web atau Telegram Web.
+              </p>
+
+              {directSendSuccess && (
+                <div
+                  role="status"
+                  className="mt-3 flex items-start gap-2.5 rounded-lg border border-emerald-500/50 bg-emerald-500/10 p-3 text-xs text-emerald-300"
+                >
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                  <span className="leading-relaxed font-mono text-[11px]">
+                    {directSendSuccess}
+                  </span>
+                </div>
+              )}
+
+              {directSendError && (
+                <div
+                  role="alert"
+                  className="mt-3 flex items-start gap-2.5 rounded-lg border border-rose-500/50 bg-rose-500/10 p-3 text-xs text-rose-300"
+                >
+                  <AlertCircle className="h-4 w-4 shrink-0 text-rose-400 mt-0.5" />
+                  <span className="leading-relaxed font-mono text-[11px]">
+                    {directSendError}
+                  </span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                disabled={isDirectSending}
+                onClick={handleDirectSendToAdmin}
+                className="mt-3.5 flex min-h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-amber-500 px-4 py-2.5 font-heading text-xs font-bold text-zinc-950 transition-colors hover:bg-amber-400 disabled:opacity-60"
               >
-                <TelegramGlyph className="h-4 w-4 shrink-0" />
-                <span className="tabular-nums">
-                  Kirim ke Telegram ({ADMIN_TELEGRAM_PHONE})
-                </span>
-                <ExternalLink className="h-4 w-4 shrink-0" />
-              </a>
+                {isDirectSending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin text-zinc-950" />
+                    <span>Mengirim Langsung ke Admin...</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 text-zinc-950" />
+                    <span>Kirim Pesan Langsung ke Admin Sekarang</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Manual Link Options: Send to WhatsApp, Send to Telegram */}
+            <div className="mt-5 border-t border-white/[0.08] pt-4">
+              <span className="block font-mono text-[11px] text-zinc-400 mb-2.5">
+                Atau Buka Obrolan Manual di Aplikasi:
+              </span>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <a
+                  href={whatsappChatUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3.5 py-2 font-heading text-xs font-bold text-emerald-400 transition-colors hover:bg-emerald-500/20 sm:text-xs"
+                >
+                  <WhatsAppGlyph className="h-4 w-4 shrink-0" />
+                  <span className="tabular-nums">
+                    Buka WhatsApp Web ({ADMIN_WHATSAPP_RAW})
+                  </span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                </a>
+
+                <a
+                  href={telegramChatUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3.5 py-2 font-heading text-xs font-bold text-amber-400 transition-colors hover:bg-amber-500/20 sm:text-xs"
+                >
+                  <TelegramGlyph className="h-4 w-4 shrink-0" />
+                  <span className="tabular-nums">
+                    Buka Telegram Web ({ADMIN_TELEGRAM_PHONE})
+                  </span>
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+                </a>
+              </div>
             </div>
 
             <div className="mt-3">

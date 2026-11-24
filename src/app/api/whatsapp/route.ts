@@ -10,6 +10,7 @@ import {
   buildFormattedSupportMessage,
   generateWhatsAppQrMatrix,
   getWhatsAppIntegrationInfo,
+  sendDirectTelegramNotification,
 } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
@@ -52,8 +53,12 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
+    const action =
+      typeof body?.action === "string" ? body.action.trim() : "preview";
     const topicId =
       typeof body?.topic_id === "string" ? body.topic_id.trim() : undefined;
+    const topicLabel =
+      typeof body?.topic_label === "string" ? body.topic_label.trim() : undefined;
     const invoiceNumber =
       typeof body?.invoice_number === "string"
         ? body.invoice_number.trim()
@@ -73,14 +78,57 @@ export async function POST(request: NextRequest) {
         ? body.custom_message.trim()
         : undefined;
 
-    const formattedMessage = buildFormattedSupportMessage({
-      topicId,
-      invoiceNumber,
-      gameName,
-      targetUserId,
-      senderPhone,
-      customMessage,
-    });
+    const formattedMessage =
+      typeof body?.formatted_message === "string" &&
+      body.formatted_message.trim()
+        ? body.formatted_message.trim()
+        : buildFormattedSupportMessage({
+            topicId,
+            invoiceNumber,
+            gameName,
+            targetUserId,
+            senderPhone,
+            customMessage,
+          });
+
+    // Action: Kirim pesan langsung ke bot Telegram Admin tanpa membuka WhatsApp/Telegram Web
+    if (action === "send_direct") {
+      const activeTopic = WHATSAPP_QUICK_TEMPLATES.find((t) => t.id === topicId);
+      const resolvedTopicLabel =
+        topicLabel || activeTopic?.label || "Pesan Bantuan / Konfirmasi";
+
+      const directResult = await sendDirectTelegramNotification({
+        formattedMessage,
+        topicLabel: resolvedTopicLabel,
+        invoiceNumber,
+        senderPhone,
+        gameName,
+        targetUserId,
+      });
+
+      if (!directResult.ok) {
+        return NextResponse.json(
+          {
+            success: false,
+            error:
+              directResult.error ||
+              directResult.description ||
+              "Gagal mengirim pesan langsung ke Telegram Admin. Pastikan Admin sudah klik START di bot @Sukijem_bot.",
+            details: directResult,
+          },
+          { status: 502 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Pesan berhasil dikirim langsung ke Admin via Telegram Bot!",
+        destination: "@Sukijem_bot",
+        admin_number: ADMIN_WHATSAPP_RAW,
+        formatted_message: formattedMessage,
+        telegram_result: directResult,
+      });
+    }
 
     const whatsappUrl = buildAdminWhatsAppUrl(formattedMessage);
     const telegramUrl = buildAdminTelegramUrl(formattedMessage);
@@ -104,7 +152,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Failed to generate WhatsApp/Telegram payload:", error);
     return NextResponse.json(
-      { error: "Gagal memproses tautan dan barcode WhatsApp/Telegram Admin." },
+      { error: "Gagal memproses permintaan WhatsApp/Telegram Admin." },
       { status: 500 }
     );
   }
